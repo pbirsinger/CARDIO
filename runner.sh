@@ -18,6 +18,7 @@ elif [ "$1" = "carma" ] || [ "$1" = "carma.c" ]; then
 
 elif [ "$1" = "strassen" ] || [ "$1" = "strassen.c" ]; then
   icc -mkl -o harness -O3 -ipo -xHOST -no-prec-div -fno-strict-aliasing -fno-omit-frame-pointer strassen_harness.c strassen.c
+ #icc -mkl -o harness -g -O0 -ipo -xHOST -no-prec-div -fno-strict-aliasing -fno-omit-frame-pointer strassen_harness.c strassen.c 
   echo -e "\e[0;32mrunning STRASSEN...\e[0m"
 
 else
