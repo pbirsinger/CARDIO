@@ -1,5 +1,7 @@
 #include "strassen.h"
-
+#include <mkl.h>
+#include <cilk/cilk.h>
+#include <cilk/cilk_api.h>
 // A is m * k
 // B is k * n
 // C is m * n
@@ -10,15 +12,13 @@ for additions/ subtractions
 use daxpy
     look at example in carma.c
 
-for base case
-    use mkl
-        example in carma
-    dgemm
-        google and look at wiki
+improve should run base case algorithm ?
+
+less mallocs ?
 **/
 
 int should_run_base_case(Problem p) {
-  if (p.m == 32 || p.k == 32 || p.n == 32){
+  if (p.m <= 32 || p.k <= 32 || p.n <= 32){
     return 1;
   }
   else{
@@ -27,14 +27,14 @@ int should_run_base_case(Problem p) {
 }
 
 void matrix_add(int N, double *A, double *B, double *C) {
-    int i;
+    int i,j;
     for (i =0 ; i < N; i++){
         C[i] = A[i] + B[i];
     }
 }
 
 void matrix_subtract(int N, double *A, double *B, double *C) {
-    int i;
+    int i,j;
     for (i =0 ; i < N; i++){
         C[i] = A[i] - B[i];
     }
@@ -55,7 +55,8 @@ void naive_multiply(int m, int k, int n, double *A, double *B, double *C) {
 }
 
 void base_case (int m, int k, int n, double *A, double *B, double *C) {
-  naive_multiply(m, k, n, A, B, C);
+  cblas_dgemm(CblasColMajor,CblasNoTrans,CblasNoTrans, m,n,k, 1, A,m, B,k, 0, C,m);
+  //naive_multiply(m, k, n, A, B, C);
 }
 
 void strassen_multiply(int m, int k, int n, double *A, double *B, double *C) {
@@ -93,6 +94,7 @@ void strassen_multiply(int m, int k, int n, double *A, double *B, double *C) {
         double *S5 = (double*) malloc(S_k * S_n * sizeof(double));
         double *S6 = (double*) malloc(S_k * S_n * sizeof(double));
 
+
         for (i = 0; i < T_k; i++){
             memcpy(T0 +i * T_m, A + i*m, T_m * sizeof(double));
             memcpy(T1 +i * T_m, A +(i+T_k) *m, T_m * sizeof(double));
@@ -104,17 +106,14 @@ void strassen_multiply(int m, int k, int n, double *A, double *B, double *C) {
             memcpy(T6 +i * T_m, A +T_m+ (i+T_k)*m, T_m * sizeof(double));
         }
 
-        for (i = 0; i < S_n; i++) {
+        for (i = 0; i < S_n; i++){
             memcpy(S0 +i * S_k, B + i*k, S_k * sizeof(double));
 
             memcpy(S1 +i * S_k, B + S_k + i*k, S_k * sizeof(double));
             memcpy(S2 +i * S_k, B + (i+S_n)*k, S_k * sizeof(double));
-
             memcpy(S3 +i * S_k, B + S_k+(i+S_n)*k, S_k * sizeof(double));
-
             memcpy(S4 +i * S_k, B + S_k+ (i+S_n)*k, S_k * sizeof(double));
             memcpy(S5 +i * S_k, B + S_k +(i+S_n)*k, S_k * sizeof(double));
-        
         }
 
         //use daxpy for adds and subtracts 
@@ -127,11 +126,11 @@ void strassen_multiply(int m, int k, int n, double *A, double *B, double *C) {
 
         matrix_subtract(T_m *T_k, T0, T2, T4);
         matrix_add(T_m *T_k, T2, T6, T2);
-        matrix_subtract(T_m *T_k, T2, T1, T3);
-        matrix_add(T_m *T_k, T1, T3, T5);
+        matrix_subtract(T_m *T_k, T2, T0, T3);
+        matrix_subtract(T_m *T_k, T1, T3, T5);
 
         matrix_subtract(S_k*S_n, S4, S2, S4);
-        matrix_add(S_k *S_n, S2, S0, S2);
+        matrix_subtract(S_k *S_n, S2, S0, S2);
         matrix_subtract(S_k *S_n, S3, S2, S3);
         matrix_subtract(S_k *S_n, S3, S1, S6);
 
@@ -179,15 +178,6 @@ void strassen_multiply(int m, int k, int n, double *A, double *B, double *C) {
             memcpy(C +T_m+(i+S_n) * m, C22 + i*T_m, T_m * sizeof(double));
         }
 
-        // for (i=0; i <S_n; i++){
-        //     for (j=0; j <T_m; j++){
-        //         C[j + i*m] = C11[j+i*T_m];
-        //         C[j + (i+S_n)*m] = C12[j+i*T_m];
-        //         C[j + T_m + i*m] = C21[j+i*T_m];
-        //         C[j + T_m + (i+S_n)*m] = C22[j+i*T_m];
-        //     }
-        // }
-
         free(T0);
         free(T1);
         free(T2);
@@ -218,7 +208,6 @@ void strassen_multiply(int m, int k, int n, double *A, double *B, double *C) {
         free(C22);
     }
 }
-
 
 
 
